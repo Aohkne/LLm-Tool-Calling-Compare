@@ -47,10 +47,12 @@ flowchart LR
     subgraph FC["Có Function Calling"]
         direction TB
         B1["User: 'Thời tiết HN?'"] --> B2["Model<br/>(biết có tool get_weather)"]
-        B2 --> B3["'Hãy gọi get_weather(\"HN\")'"]
+        B2 --> B3["'Hãy gọi get_weather(city=HN)'"]
         B3 --> B4["App chạy hàm"]
         B4 --> B5["Model: 'HN: 29°C, mưa'"]
     end
+
+    NoFC ~~~ FC
 ```
 
 **Điểm mấu chốt:** Model **KHÔNG chạy** hàm. Nó chỉ nói *"hãy gọi hàm X với tham số Y"*.
