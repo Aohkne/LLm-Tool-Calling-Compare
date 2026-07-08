@@ -1,15 +1,4 @@
-"""Minh hoạ KHÔNG có function calling — model tự bịa câu trả lời.
-
-So sánh với weather_function_calling.py: file này gửi CÙNG một câu hỏi
-tới GLM-5.2 (qua NVIDIA API) nhưng KHÔNG truyền tool nào. Model không có
-dữ liệu thời tiết thật, nên chỉ có thể đoán hoặc từ chối trả lời — minh
-hoạ vì sao cần function calling khi cần dữ liệu real-time.
-
-Cách chạy:
-    pip install -r ../requirements.txt
-    cp .env.example .env   # điền NVIDIA_API_KEY
-    python weather_no_tool.py
-"""
+"""Minh hoạ KHÔNG có function calling — model tự bịa câu trả lời."""
 
 import os
 

@@ -1,16 +1,4 @@
-"""Minh hoạ FUNCTION CALLING thuần — dùng GLM-5.2 qua NVIDIA API (OpenAI-compatible).
-
-Tool `get_weather` được định nghĩa schema thủ công VÀ thực thi ngay trong
-chính file app này. Model chỉ QUYẾT ĐỊNH gọi tool nào; app mới là nơi chạy.
-
-So sánh với weather_no_tool.py (cùng câu hỏi nhưng KHÔNG có tool) để thấy
-rõ khác biệt: có tool → dữ liệu thật; không tool → model tự bịa/từ chối.
-
-Cách chạy:
-    pip install -r ../requirements.txt
-    cp .env.example .env   # điền NVIDIA_API_KEY
-    python weather_function_calling.py
-"""
+"""Minh hoạ FUNCTION CALLING thuần"""
 
 import json
 import os
