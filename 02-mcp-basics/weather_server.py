@@ -12,6 +12,8 @@ Chạy trực tiếp:
     python weather_server.py
 
 Đăng ký với Claude Code (làm 1 lần, dùng mãi):
+    cd /đường dẫn hiện tại
+    pwd -> copy
     claude mcp add weather -- python /đường/dẫn/tới/weather_server.py
 """
 
