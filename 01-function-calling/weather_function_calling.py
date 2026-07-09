@@ -2,9 +2,13 @@
 
 import json
 import os
+import sys
 
 from dotenv import load_dotenv
 from openai import OpenAI
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from shared.mock_data import get_exchange_rate, get_weather  # noqa: E402
 
 from prompts import SYSTEM_INSTRUCTION
 
@@ -18,47 +22,39 @@ client = OpenAI(
 MODEL = os.getenv("GLM_MODEL")
 
 # 1. App tự định nghĩa schema của tool (định dạng OpenAI function calling)
-GET_WEATHER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Lấy thời tiết hiện tại của một thành phố",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "Tên thành phố"},
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Lấy thời tiết hiện tại của một thành phố",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "Tên thành phố"},
+                },
+                "required": ["city"],
             },
-            "required": ["city"],
         },
     },
-}
+    {
+        "type": "function",
+        "function": {
+            "name": "get_exchange_rate",
+            "description": "Lấy tỷ giá quy đổi sang VND của một loại ngoại tệ hôm nay",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "currency": {"type": "string", "description": "Mã ngoại tệ, ví dụ: USD"},
+                },
+                "required": ["currency"],
+            },
+        },
+    },
+]
 
-
-# 2. App tự thực thi tool (trong thực tế sẽ gọi API thời tiết thật)
-def get_weather(city: str) -> str:
-    """Trả về thời tiết (mock) của *city*. Dùng làm tool cho model."""
-    mock_data = {
-        "Hà Nội": {
-            "nhiệt_độ": "29°C",
-            "thời_tiết": "trời mưa nhẹ",
-            "độ_ẩm": "82%",
-            "gió": {"hướng": "Đông Nam", "tốc_độ": "12 km/h"},
-        },
-        "Hồ Chí Minh": {
-            "nhiệt_độ": "33°C",
-            "thời_tiết": "mưa rào",
-            "độ_ẩm": "75%",
-            "gió": {"hướng": "Tây Nam", "tốc_độ": "15 km/h"},
-        },
-        "Đà Nẵng": {
-            "nhiệt_độ": "30°C",
-            "thời_tiết": "nhiều mây",
-            "độ_ẩm": "78%",
-            "gió": {"hướng": "Đông", "tốc_độ": "10 km/h"},
-        },
-    }
-    default = {"nhiệt_độ": "28°C", "thời_tiết": "không có dữ liệu chi tiết"}
-    return json.dumps({"city": city, **mock_data.get(city, default)}, ensure_ascii=False)
+# 2. App tự thực thi tool
+TOOL_IMPLS = {"get_weather": get_weather, "get_exchange_rate": get_exchange_rate}
 
 
 def run(prompt: str) -> str:
@@ -68,11 +64,11 @@ def run(prompt: str) -> str:
         {"role": "user", "content": prompt},
     ]
 
-    # 3. Gọi model — model quyết định có gọi tool hay không
+    # 3. Gọi model — model quyết định gọi tool nào trong TOOLS (nếu cần)
     resp = client.chat.completions.create(
         model=MODEL,
         messages=messages,
-        tools=[GET_WEATHER_TOOL],
+        tools=TOOLS,
     )
     message = resp.choices[0].message
 
@@ -83,8 +79,9 @@ def run(prompt: str) -> str:
 
         for tool_call in message.tool_calls:
             args = json.loads(tool_call.function.arguments)
+            fn = TOOL_IMPLS[tool_call.function.name]
             print(f"  [model yêu cầu] {tool_call.function.name}({args})")
-            result = get_weather(**args)  # <-- app chạy, không phải model
+            result = fn(**args)  # <-- app chạy, không phải model
             print(f"  [app thực thi]  -> {result}")
             messages.append({
                 "role": "tool",
@@ -95,7 +92,7 @@ def run(prompt: str) -> str:
         resp = client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            tools=[GET_WEATHER_TOOL],
+            tools=TOOLS,
         )
         message = resp.choices[0].message
 
@@ -104,6 +101,6 @@ def run(prompt: str) -> str:
 
 
 if __name__ == "__main__":
-    question = "Thời tiết Hà Nội và Đà Nẵng hôm nay thế nào?"
+    question = "Thời tiết Cần Thơ hôm nay thế nào? Và tỷ giá USD hôm nay bao nhiêu?"
     print(f"User: {question}\n")
     print("Trả lời:", run(question))

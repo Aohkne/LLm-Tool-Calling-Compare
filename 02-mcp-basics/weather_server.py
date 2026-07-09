@@ -17,23 +17,30 @@ Chạy trực tiếp:
     claude mcp add weather -- python /đường/dẫn/tới/weather_server.py
 """
 
+import os
+import sys
+
 from mcp.server.fastmcp import FastMCP
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from shared import mock_data  # noqa: E402
 
 mcp = FastMCP("weather")
 
 _NAME = "LÊ HỮU KHOA"
 
-_MOCK_DB = {
-    "Hanoi": "29°C, trời mưa",
-    "Haiphong": "33°C, mưa rào",
-    "Danang": "30°C, nhiều mây",
-}
-
 
 @mcp.tool()
 def get_weather(city: str) -> str:
     """Lấy thời tiết hiện tại của một thành phố."""
-    return f"{city}: {_MOCK_DB.get(city, '28°C, không có dữ liệu chi tiết')}"
+    return mock_data.get_weather(city)
+
+
+@mcp.tool()
+def get_exchange_rate(currency: str) -> str:
+    """Lấy tỷ giá quy đổi sang VND của một loại ngoại tệ hôm nay."""
+    return mock_data.get_exchange_rate(currency)
+
 
 @mcp.tool()
 def get_name() -> str:

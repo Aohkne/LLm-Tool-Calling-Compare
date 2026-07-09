@@ -1,46 +1,58 @@
 # 02 — MCP Basics (Server + Client)
 
-Cùng tool `get_weather`, nhưng giờ tách ra **MCP server độc lập**. Server tự công bố
-tool qua giao thức MCP; bất kỳ client nào (Claude Code, Cursor, hoặc `weather_client.py`)
-cũng cắm vào dùng được — không cần biết code bên trong.
+Tool `get_weather` + `get_exchange_rate` được tách ra một **MCP server độc lập**.
+Server tự công bố tool qua giao thức MCP; bất kỳ client nào (Claude Code, Cursor, hoặc
+`weather_client.py`) cũng cắm vào dùng được — không cần biết code bên trong.
 
-```
-weather_client.py                       weather_server.py
-┌─────────────┐    giao thức MCP    ┌─────────────────┐
-│  list_tools │ ──────────────────▶ │ @mcp.tool()     │
-│  call_tool  │ ◀────────────────── │ get_weather()   │
-└─────────────┘     stdio           └─────────────────┘
+`weather_client.py` gắn thêm GLM — model THẬT sự quyết định gọi tool nào dựa trên
+schema mà `list_tools()` tự khám phá được, MCP server thực thi.
+
+```mermaid
+flowchart LR
+    GLM["GLM<br/>chọn tool nào để gọi"] --> Client
+    subgraph Client["weather_client.py"]
+        A["list_tools()<br/>call_tool()"]
+    end
+    subgraph Server["weather_server.py"]
+        B["@mcp.tool()<br/>get_weather()<br/>get_exchange_rate()"]
+    end
+    A -- "giao thức MCP (stdio)" --> B
+    B -- kết quả --> A
 ```
 
-## Cách chạy (không cần API key)
+## Cách chạy (cần NVIDIA API key — dùng chung `.env` ở gốc repo)
 
 ```bash
 pip install -r ../requirements.txt
+cp ../.env.example ../.env   # điền NVIDIA_API_KEY (dùng chung với 01/03)
 python weather_client.py     # client tự khởi động weather_server.py
 ```
 
-Kết quả mong đợi:
+Kết quả mong đợi (rút gọn):
 
 ```
-Tools server cung cấp:
+Tools MCP server cung cấp:
   - get_weather: Lấy thời tiết hiện tại của một thành phố.
+  - get_exchange_rate: Lấy tỷ giá quy đổi sang VND của một loại ngoại tệ hôm nay.
+  - get_name: Lấy tên của tool
 
-call_tool get_weather(city='Hanoi'):
-  -> Hanoi: 29°C, trời mưa
+User: Thời tiết Cần Thơ hôm nay thế nào? Và tỷ giá USD hôm nay bao nhiêu?
 
-call_tool get_weather(city='Danang'):
-  -> Danang: 30°C, nhiều mây
+  [model yêu cầu] get_weather({'city': 'Cần Thơ'})
+  [MCP server]   -> Cần Thơ: 31°C, nắng nóng
+  [model yêu cầu] get_exchange_rate({'currency': 'USD'})
+  [MCP server]   -> 1 USD = 25,400 VND
 
-call_tool get_weather(city='Haiphong'):
-  -> Haiphong: 33°C, mưa rào
+Trả lời: Cần Thơ hôm nay 31°C, nắng nóng — nhớ mang nước, đội mũ nhé! 🌤️
+Tỷ giá USD hôm nay: 1 USD = 25.400 VND.
 ```
 
 ## Files
 
 | File | Mô tả |
 |---|---|
-| `weather_server.py` | MCP server — `@mcp.tool()` tự sinh schema từ type hints + docstring |
-| `weather_client.py` | MCP client — `list_tools` + `call_tool` qua stdio transport |
+| `weather_server.py` | MCP server — `@mcp.tool()` tự sinh schema từ type hints + docstring, dùng chung `shared/mock_data.py` |
+| `weather_client.py` | MCP client + GLM — `list_tools()` → đưa cho model chọn tool → `call_tool()` thực thi qua MCP |
 
 ---
 
@@ -48,188 +60,64 @@ call_tool get_weather(city='Haiphong'):
 
 ### Phép so sánh: ổ cắm điện chuẩn
 
+```mermaid
+flowchart TB
+    subgraph NoMCP["KHÔNG CÓ MCP — mỗi nhà 1 kiểu ổ cắm"]
+        direction LR
+        Q1["Quạt"] -- "phích A" --> N1["Ổ cắm nhà 1"]
+        Q2["Quạt"] -- "phích B" --> N2["Ổ cắm nhà 2"]
+        Q3["Quạt"] -- "phích C" --> N3["Ổ cắm nhà 3"]
+    end
+
+    subgraph WithMCP["CÓ MCP — chuẩn hoá ổ cắm"]
+        direction LR
+        D1["Quạt"] --> Std["Ổ cắm chuẩn"]
+        D2["Tivi"] --> Std
+        D3["Máy lạnh"] --> Std
+        Std --> H1["Nhà 1"]
+        Std --> H2["Nhà 2"]
+        Std --> H3["Nhà 3"]
+    end
 ```
-KHÔNG CÓ MCP (mỗi nhà 1 kiểu ổ cắm)
-══════════════════════════════════════
 
-  Quạt ──[phích A]──▶ Ổ cắm nhà 1       ← Quạt chỉ dùng được ở nhà 1
-  Quạt ──[phích B]──▶ Ổ cắm nhà 2       ← Phải đổi phích cho nhà 2
-  Quạt ──[phích C]──▶ Ổ cắm nhà 3       ← Lại đổi phích cho nhà 3
-
-  Mỗi nhà 1 kiểu ổ → mua thiết bị phải xem nhà dùng ổ gì
-
-
-CÓ MCP (chuẩn hoá ổ cắm)
-══════════════════════════
-
-  Quạt  ──┐                    ┌── Nhà 1
-  Tivi  ──┼── ổ cắm chuẩn ──   ├── Nhà 2
-  Máy lạnh┘                    └── Nhà 3
-
-  Viết tool 1 lần → mọi AI app dùng được
-  Viết client 1 lần → mọi tool server cắm vào được
-```
+> Không có MCP: mỗi nhà 1 kiểu ổ → mua thiết bị phải xem nhà dùng ổ gì.
+> Có MCP: viết tool 1 lần → mọi AI app dùng được; viết client 1 lần → mọi tool server cắm vào được.
 
 ### 3 bước MCP hoạt động
 
-```
-Bước 1 — KHÁM PHÁ: "Anh có tool gì?"
-══════════════════════════════════════
+**Bước 1 — KHÁM PHÁ: "Anh có tool gì?"**
 
-  Client                          Server
-    │                               │
-    │── "list_tools()" ───────────▶ │
-    │                               │  Server tự trả lời:
-    │                               │  "Tôi có get_weather(city: str)"
-    │◀── [{name, description,  ──── │  Schema SINH TỰ ĐỘNG
-    │      parameters}]             │  từ type hints + docstring
-    │                               │
-
-  So sánh Function Calling:
-    FC:  Developer viết schema THỦ CÔNG 15+ dòng
-    MCP: @mcp.tool() → schema TỰ SINH từ type hints
-
-
-Bước 2 — GỌI TOOL: "Cho tôi thời tiết HN"
-═══════════════════════════════════════════
-
-  Client                          Server
-    │                               │
-    │── call_tool("get_weather", ─▶ │
-    │    {"city": "Hanoi"})         │
-    │                               │  SERVER thực thi hàm
-    │                               │  get_weather("Hanoi")
-    │◀── "Hanoi: 29°C, mưa" ──────  │
-    │                               │
-
-  So sánh Function Calling:
-    FC:  APP phải tự chạy hàm
-    MCP: SERVER chạy — client không cần biết code bên trong
-
-
-Bước 3 — TÁI SỬ DỤNG: viết 1 lần, dùng mọi nơi
-═════════════════════════════════════════════════
-
-                     ┌── Claude Code
-                     │      "list_tools → get_weather"
-  weather_server.py ─┼── Cursor
-                     │      "list_tools → get_weather"
-                     ├── Gemini CLI
-                     │      "list_tools → get_weather"
-                     └── App tự viết
-                            "list_tools → get_weather"
-
-  1 server phục vụ N client — không sửa dòng code nào
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    C->>S: list_tools()
+    Note over S: Tự trả lời: "Tôi có get_weather(city: str)"<br/>Schema SINH TỰ ĐỘNG từ type hints + docstring
+    S-->>C: [{name, description, parameters}]
 ```
 
----
+**Bước 2 — GỌI TOOL: "Cho tôi thời tiết Cần Thơ"**
 
-## So sánh code: Function Calling vs MCP
-
-### Khai báo tool
-
-```
-Function Calling (01):                    MCP (02):
-30 dòng schema viết tay                   4 dòng, tự sinh schema
-
-types.FunctionDeclaration(                @mcp.tool()
-  name="get_weather",                     def get_weather(city: str) -> str:
-  description="Lấy thời tiết...",             """Lấy thời tiết..."""
-  parameters=types.Schema(                    return f"{city}: 29°C"
-    type=types.Type.OBJECT,
-    properties={                           ✅ Schema tự sinh từ:
-      "city": types.Schema(                   city: str    → type: string
-        type=types.Type.STRING,               -> str       → return type
-        description="Tên thành phố"           docstring    → description
-      )
-    },
-    required=["city"],
-  ),
-)
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    C->>S: call_tool("get_weather", {"city": "Cần Thơ"})
+    Note over S: SERVER thực thi hàm<br/>get_weather("Cần Thơ")
+    S-->>C: "Cần Thơ: 31°C, nắng nóng"
 ```
 
-### Nơi thực thi
+**Bước 3 — TÁI SỬ DỤNG: viết 1 lần, dùng mọi nơi**
 
-```
-Function Calling:                          MCP:
-Mọi thứ trong 1 file                      Tách server / client
-
-┌── weather_app.py ──────────┐             ┌── server.py ─────────┐
-│                            │             │  @mcp.tool()         │
-│  schema = {...}            │             │  def get_weather():  │
-│  def get_weather(): ...    │             │      ...             │
-│  model.generate(...)       │             └──────────────────────┘
-│  result = get_weather()    │                       ▲
-│                            │                       │ MCP
-└────────────────────────────┘                       │
-                                           ┌── client.py ─────────┐
-App = schema + hàm + model                 │  list_tools()        │
-    = làm hết mọi thứ                      │  call_tool()         │
-                                           └──────────────────────┘
-
-                                           Client chỉ biết giao thức
-                                           Server chỉ biết logic tool
+```mermaid
+flowchart LR
+    S["weather_server.py"] --> A["Claude Code<br/>list_tools → get_weather"]
+    S --> B["Cursor<br/>list_tools → get_weather"]
+    S --> C["Gemini CLI<br/>list_tools → get_weather"]
+    S --> D["App tự viết<br/>list_tools → get_weather"]
 ```
 
-### Thêm tool mới
-
-```
-Function Calling:                          MCP:
-
-  App A: thêm schema + hàm                  Server: thêm 1 hàm @mcp.tool()
-  App B: copy schema + hàm                  Client A: không đổi (tự khám phá)
-  App C: copy schema + hàm                  Client B: không đổi
-                                            Client C: không đổi
-  3 chỗ phải sửa                             1 chỗ phải sửa
-```
-
----
-
-## Khác biệt so với Function Calling thuần
-
-| | 01-function-calling | 02-mcp-basics |
-|---|---|---|
-| Khai báo schema | Viết tay `FunctionDeclaration` | `@mcp.tool()` tự sinh |
-| Nơi thực thi tool | Trong app gọi model | Trong MCP server riêng |
-| Khám phá tool | Hard-code danh sách | `list_tools()` tại runtime |
-| Dùng lại ở app khác | Copy code | Cắm thêm client |
-
----
-
-## MCP trong thực tế: kết hợp với LLM
-
-Ví dụ trên chỉ demo **lớp giao thức** (không cần API key). Trong production, MCP kết hợp với Function Calling:
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                    Luồng đầy đủ                          │
-│                                                          │
-│  User: "Thời tiết HN?"                                   │
-│    │                                                     │
-│    ▼                                                     │
-│  AI Client (Claude, Cursor...)                           │
-│    │                                                     │
-│    ├─ 1. list_tools() ──▶ MCP Server                     │
-│    │◀── "có get_weather"                                 │
-│    │                                                     │
-│    ├─ 2. Gửi prompt + tool list cho LLM                  │
-│    │◀── LLM dùng FUNCTION CALLING:                       │
-│    │    "gọi get_weather(city='HN')"                     │
-│    │                                                     │
-│    ├─ 3. call_tool("get_weather") ──▶ MCP Server         │
-│    │◀── "HN: 29°C, mưa"                                  │
-│    │                                                     │
-│    ├─ 4. Gửi kết quả cho LLM tổng hợp                    │
-│    │◀── "HN 29°C, mưa, nhớ mang ô!"                      │
-│    │                                                     │
-│    ▼                                                     │
-│  User nhận câu trả lời                                   │
-│                                                          │
-│  Function Calling = LLM quyết định gọi tool nào (bước 2) │
-│  MCP = giao thức kết nối client ↔ server (bước 1, 3)     │
-│  → Chúng BỔ SUNG cho nhau, không thay thế                │
-└──────────────────────────────────────────────────────────┘
-```
+> 1 server phục vụ N client — không sửa dòng code nào.
 
 ---
 
@@ -253,4 +141,6 @@ claude mcp add weather -- python /đường/dẫn/tới/weather_server.py
 }
 ```
 
-Bước tiếp theo: [03-production/](../03-production/) — Auth, Tool Registry, Versioning.
+---
+
+Bước tiếp theo: [`../README.md`](../README.md) — so sánh MCP với Function Calling (01) và CLI (03).
